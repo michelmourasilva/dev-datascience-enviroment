@@ -1,0 +1,46 @@
+# imagem oficial
+FROM python:3.8.1-alpine
+
+# diretório de trabalho
+WORKDIR /usr/src/app
+
+# Informar as variáveis de ambiente
+ENV PYTHONDONTWRITEBYTECODE 1
+ENV PYTHONUNBUFFERED 1
+
+ENV DATABASE_HOST=${DATABASE_HOST}
+ENV DATABASE_PORT=${DATABASE_PORT}
+ENV DATABASE_USER=${DATABASE_USER}
+ENV DATABASE_PASSWORD=${DATABASE_PASSWORD}
+ENV DATABASE_NAME=${DATABASE_NAME}
+ENV DATABASE_SCHEMA=${DATABASE_SCHEMA}
+ENV DATABASE_LOG=${DATABASE_LOG}
+ENV ENVIROMENT=${ENVIROMENT}
+ENV PYTHONPATH="/usr"
+ENV APM_SERVER_URL=${APM_SERVER_URL}
+ENV APM_SERVER_PORT=${APM_SERVER_PORT}
+ENV APM_SERVICE_NAME=${APM_SERVICE_NAME}
+ENV SERVER_WORKER=${SERVER_WORKER}
+ENV SERVER_LOG=${SERVER_LOG}
+ENV SERVER_TIMEOUT=${SERVER_TIMEOUT}
+
+# copia os requerimentos específicos para a API
+COPY api/src/requirements.txt /usr/src/app/requirements.txt
+
+# instala as dependências
+RUN set -eux \
+    && apk add --no-cache --virtual .build-deps build-base \
+        libressl-dev libffi-dev gcc musl-dev  \
+        postgresql-dev \
+    && pip install --upgrade pip setuptools wheel \
+    && pip install -r /usr/src/app/requirements.txt \
+    && rm -rf /root/.cache/pip
+
+# copia os arquivos do projeto
+COPY api/src /usr/src/
+
+# Expõe a porta 8000
+EXPOSE 8000
+
+# Executa a API
+CMD ["/bin/sh", "-c", "python3 main.py"]

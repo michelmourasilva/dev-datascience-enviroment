@@ -1,0 +1,23 @@
+
+{
+	"name": "Existing Docker Compose (Extend)",
+
+	"dockerComposeFile": [
+		"../docker-compose.yml",
+		"docker-compose.yml"
+	],
+
+	"service": "web",
+
+	"workspaceFolder": "/workspace",
+
+
+	"forwardPorts": [
+		8000
+	],
+	"extensions": [
+		"ms-python.python",
+		"ckolkman.vscode-postgres"
+	],
+
+}

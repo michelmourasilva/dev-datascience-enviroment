@@ -1,0 +1,25 @@
+version: '2.1'
+services:
+  web:
+    build: .
+    volumes:
+      - './src/:/usr/src/'
+    ports:
+      - '8000:8000'
+    environment:
+      - DATABASE_HOST=10.0.12.129
+      - DATABASE_PORT=5432
+      - DATABASE_USER=integraH_app
+      - DATABASE_PASSWORD=M8%40it%24fa
+      - DATABASE_NAME=dbrenachH
+      - DATABASE_SCHEMA=renach
+      - DATABASE_LOG=true
+      - ENVIROMENT=PRD
+      - PYTHONPATH=/usr
+      - APM_SERVER_URL=
+      - APM_SERVER_PORT=
+      - APM_SERVICE_NAME=
+      - SERVER_WORKER=
+      - SERVER_LOG=info
+      - SERVER_TIMEOUT=
+    command: /bin/sh -c "python3 main.py"

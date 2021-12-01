@@ -1,0 +1,213 @@
+stages:
+  - tests
+  - build
+  - image
+  - push
+  - deploy
+  - loadtest
+  - acceptance
+  - security
+  - notify
+  - homologacao
+  - producao
+
+# Jobs
+1-Verificacao_variaveis_configuracoes:
+  stage: tests
+#  tags:
+#  - ciencia-de-dados
+  only:  
+    changes:
+    - api/*  
+  variables:
+    GIT_STRATEGY: none
+  script:
+  - echo "Nome App / URL Registry / Pasta Projeto / Numero pipeline" 
+  - echo $KS8_APP / $REGISTRY_REPO / $CI_PROJECT_PATH / $CI_PIPELINE_ID || true
+
+2-Sonar-Report:
+  stage: tests
+#  tags: 
+#  - ciencia-de-dados
+  only:  
+    changes:
+    - api/*  
+  variables:
+    GIT_STRATEGY: none
+  script:
+  - echo running sonar || true
+
+3-Image-Build:
+  stage: build
+#  tags:
+#  - ciencia-de-dados  
+  only:  
+    changes:
+    - api/*  
+  script:
+    - docker build -t $KS8_APP -f ./api/Dockerfile.production .
+
+4-Docker_Build:
+  stage: image
+#  tags:
+#  - ciencia-de-dados
+  only:  
+    changes:
+    - api/*  
+  script:
+#  - docker login --username root --password 23071223
+  # - docker login -u gitlab-ci-token -p $CI_JOB_TOKEN dockerhub.example.com
+  - docker build -f ./api/Dockerfile.production -t $REGISTRY_REPO/$CI_PROJECT_PATH/$KS8_APP:$CI_PIPELINE_ID .
+  - docker build -f ./api/Dockerfile.production -t $REGISTRY_REPO/$CI_PROJECT_PATH/$KS8_APP:latest .
+# https://github.com/quay/clair - verifica detalhes e vulnerabilidades das imagens
+5-Docker_Check:
+  stage: image
+#  tags:
+#  - ciencia-de-dados
+  only:  
+    changes:
+    - api/*  
+  variables:
+    GIT_STRATEGY: none
+  script:
+  - echo "running clair on image $CI_PIPELINE_ID" || true
+
+# Apaga as builds antigas dentro do gitlab Runner
+6-Docker_Limpeza:
+  stage: image
+#  tags:
+#  - ciencia-de-dados
+  only:  
+    changes:
+    - api/*  
+  script:
+  - echo "Limpando imagens da tag $REGISTRY_REPO/$CI_PROJECT_PATH/$KS8_APP| antigas e mantendo apenas latest e $CI_PIPELINE_ID"
+#  - for i in `docker images|grep $REGISTRY_REPO:$/$CI_PROJECT_PATH/$KS8_APP|egrep -v '(latest|$CI_PIPELINE_ID)' | awk '{ print $1 ":" $2 }'`; do docker rmi -f $i;done
+  - for i in `docker images|grep $REGISTRY_REPO/$CI_PROJECT_PATH/$KS8_APP|egrep -v '(latest|$CI_PIPELINE_ID)' | awk '{ print $1 ":" $2 }'`; do echo $i ;done
+
+7_Docker_Push:
+  stage: push
+  only:  
+    changes:
+    - api/*    
+#  tags:
+#  - ciencia-de-dados
+  script:
+  - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $REGISTRY_REPO
+  - docker push $REGISTRY_REPO/$CI_PROJECT_PATH/$KS8_APP:$CI_PIPELINE_ID
+
+8_Kubernets-desenvolvimento:
+  stage: deploy
+#  tags:
+#  - ciencia-de-dados
+  only:  
+    changes:
+    - api/*  
+  image:
+    name: bitnami/kubectl:1.14
+    entrypoint: [""]
+  before_script:
+  - echo $KUBE_CREDENCIALS_DESENVOLVIMENTO | base64 -d > config
+  - export KUBECONFIG=config
+  script:
+  - echo "Subindo imagem para o Kubernets"
+#  - git tag -a ${tag} -m "Deploy - branch ${CI_COMMIT_BRANCH} - Mensagem ${CI_COMMIT_MESSAGE} - N.Build ${CI_PIPELINE_ID} "
+  - kubectl set image -n $KS8_NAMESPACE deployment/$KS8_APP $KS8_APP=$REGISTRY_REPO/$CI_PROJECT_PATH/$KS8_APP:$CI_PIPELINE_ID
+
+9_Teste_estresse:
+  stage: loadtest
+#  tags:
+#  - ciencia-de-dados
+  only:  
+    changes:
+    - api/*  
+  dependencies:
+  - 8_Kubernets-desenvolvimento
+  #image:
+  #  name: loadimpact/k6:latest
+  #  entrypoint: [""]
+  script:
+  - echo "executing k6 againt site with 9000 requests in 30s..."
+#    - k6 run ./loadtests/performance-test.js
+
+10_Teste_automatizado-selenium:
+  stage: acceptance
+#  tags:
+#  - ciencia-de-dados
+  only:  
+    changes:
+    - api/*  
+  variables:
+    GIT_STRATEGY: none
+  script:
+  - echo running selenium acceptance tests || true
+
+11_Vulnerabilidade-CVE_scanner:
+  stage: security
+#  tags:
+#  - ciencia-de-dados
+  only:  
+    changes:
+    - api/*  
+  dependencies:
+  - 10_Teste_automatizado-selenium
+  variables:
+    GIT_STRATEGY: none
+  script:
+  - echo running a security scanner || true
+
+12_Notificar_time:
+  stage: notify
+#  tags:
+#  - ciencia-de-dados
+  only:  
+    changes:
+    - api/*  
+  variables:
+    GIT_STRATEGY: none
+  script:
+  - echo notifying teams || true
+
+13_Kubernets-homologacao:
+  stage: homologacao
+#  tags:
+#  - ciencia-de-dados
+  only:  
+    changes:
+    - api/*  
+  dependencies:
+  - 12_Notificar_time
+  image:
+    name: bitnami/kubectl:1.14
+    entrypoint: [""]
+  #before_script:
+  #- echo $KUBE_CREDENTIALS | base64 -d > config
+  #3- export KUBECONFIG=config
+  when: manual
+  allow_failure: false
+  script:
+  - echo "Subindo imagem para o Kubernets"
+#  - git tag -a ${tag} -m "Deploy - branch ${CI_COMMIT_BRANCH} - Mensagem ${CI_COMMIT_MESSAGE} - N.Build ${CI_PIPELINE_ID} "
+  #- kubectl set image -n $KS8_NAMESPACE deployment/$KS8_APP $KS8_APP=$NEXUS_REPO:$NEXUS_PORT_PULL/demo:$CI_PIPELINE_ID
+
+14_Kubernets-producao:
+  stage: producao
+#  tags:
+#  - ciencia-de-dados
+  only:  
+    changes:
+    - api/*  
+  dependencies:
+  - 13_Kubernets-homologacao
+  image:
+    name: bitnami/kubectl:1.14
+    entrypoint: [""]
+  when: manual
+  allow_failure: false
+  #before_script:
+  #- echo $KUBE_CREDENTIALS | base64 -d > config
+  #3- export KUBECONFIG=config
+  script:
+  - echo "Subindo imagem para o Kubernets"
+#  - git tag -a ${tag} -m "Deploy - branch ${CI_COMMIT_BRANCH} - Mensagem ${CI_COMMIT_MESSAGE} - N.Build ${CI_PIPELINE_ID} "
+  #- kubectl set image -n $KS8_NAMESPACE deployment/$KS8_APP $KS8_APP=$NEXUS_REPO:$NEXUS_PORT_PULL/demo:$CI_PIPELINE_ID

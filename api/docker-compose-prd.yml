@@ -1,0 +1,21 @@
+version: '2.1'
+services:
+  web:
+    build: .
+    volumes:
+      - './src/:/usr/src/'
+    ports:
+      - '8002:8000'
+    environment:
+      - DATABASE_HOST=host
+      - DATABASE_PORT=5432
+      - DATABASE_USER=integraD_app
+      - DATABASE_PASSWORD=senha
+      - DATABASE_NAME=dbintegraD
+      - DATABASE_SCHEMA=renach
+      - ENVIROMENT=PRD
+      - PYTHONPATH=/usr
+      #- APM_SERVER_URL=apm-server
+      #- APM_SERVER_PORT=8200
+      #- APM_SERVICE_NAME=api
+    command: /bin/sh -c "python3 main.py"
